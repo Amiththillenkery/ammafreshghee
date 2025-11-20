@@ -14,8 +14,8 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize database
-initializeDatabase();
-seedProducts();
+await initializeDatabase();
+await seedProducts();
 
 // Middleware to verify admin access for price modifications
 const verifyAdmin = (req, res, next) => {
@@ -34,9 +34,9 @@ const verifyAdmin = (req, res, next) => {
 // ==================== PUBLIC ROUTES ====================
 
 // GET all products (read-only for customers)
-app.get('/api/products', (req, res) => {
+app.get('/api/products', async (req, res) => {
   try {
-    const products = db.prepare('SELECT * FROM products ORDER BY grams ASC').all();
+    const products = await db.all('SELECT * FROM products ORDER BY grams ASC');
     res.json(products);
   } catch (error) {
     console.error('Error fetching products:', error);
@@ -45,9 +45,9 @@ app.get('/api/products', (req, res) => {
 });
 
 // GET single product
-app.get('/api/products/:id', (req, res) => {
+app.get('/api/products/:id', async (req, res) => {
   try {
-    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+    const product = await db.get('SELECT * FROM products WHERE id = $1', [req.params.id]);
     
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
@@ -61,7 +61,7 @@ app.get('/api/products/:id', (req, res) => {
 });
 
 // POST create new order
-app.post('/api/orders', (req, res) => {
+app.post('/api/orders', async (req, res) => {
   try {
     const {
       customerName,
@@ -87,7 +87,7 @@ app.post('/api/orders', (req, res) => {
     const verifiedItems = [];
 
     for (const item of items) {
-      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.productId);
+      const product = await db.get('SELECT * FROM products WHERE id = $1', [item.productId]);
       
       if (!product) {
         return res.status(400).json({ error: `Product with ID ${item.productId} not found` });
@@ -107,63 +107,58 @@ app.post('/api/orders', (req, res) => {
     }
 
     // Calculate delivery charge based on products
-    const hasFreeDelivery = verifiedItems.some(item => {
-      const product = db.prepare('SELECT * FROM products WHERE id = ?').get(item.productId);
-      return product.delivery_charge === 0;
+    const hasFreeDel = verifiedItems.some(item => {
+      const product = verifiedItems.find(v => v.productId === item.productId);
+      return product && product.pricePerUnit >= 1200; // Free delivery for 1kg+ products
     });
     
-    const calculatedDeliveryCharge = hasFreeDelivery ? 0 : 49;
+    const calculatedDeliveryCharge = hasFreeDel ? 0 : 49;
     const calculatedTotal = calculatedSubtotal + calculatedDeliveryCharge;
 
     // Generate unique order number
     const orderNumber = `AFK${Date.now()}`;
 
     // Insert order
-    const insertOrder = db.prepare(`
-      INSERT INTO orders (
+    const orderResult = await db.query(
+      `INSERT INTO orders (
         order_number, customer_name, customer_phone, customer_email,
         delivery_address, city, pincode, landmark,
         subtotal, delivery_charge, total_amount
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const orderResult = insertOrder.run(
-      orderNumber,
-      customerName,
-      customerPhone,
-      customerEmail || null,
-      deliveryAddress,
-      city,
-      pincode,
-      landmark || null,
-      calculatedSubtotal,
-      calculatedDeliveryCharge,
-      calculatedTotal
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING id`,
+      [
+        orderNumber,
+        customerName,
+        customerPhone,
+        customerEmail || null,
+        deliveryAddress,
+        city,
+        pincode,
+        landmark || null,
+        calculatedSubtotal,
+        calculatedDeliveryCharge,
+        calculatedTotal
+      ]
     );
 
-    const orderId = orderResult.lastInsertRowid;
+    const orderId = orderResult.rows[0].id;
 
     // Insert order items
-    const insertItem = db.prepare(`
-      INSERT INTO order_items (
-        order_id, product_id, product_name, quantity, price_per_unit, total_price
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
-    const insertItems = db.transaction((items) => {
-      for (const item of items) {
-        insertItem.run(
+    for (const item of verifiedItems) {
+      await db.query(
+        `INSERT INTO order_items (
+          order_id, product_id, product_name, quantity, price_per_unit, total_price
+        ) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
           orderId,
           item.productId,
           item.productName,
           item.quantity,
           item.pricePerUnit,
           item.totalPrice
-        );
-      }
-    });
-
-    insertItems(verifiedItems);
+        ]
+      );
+    }
 
     // Send notification (WhatsApp/Email) to customer (async, don't block response)
     notificationService.sendOrderConfirmation({
@@ -202,19 +197,21 @@ app.post('/api/orders', (req, res) => {
 });
 
 // GET order by order number (Public - for order tracking)
-app.get('/api/orders/:orderNumber', (req, res) => {
+app.get('/api/orders/:orderNumber', async (req, res) => {
   try {
-    const order = db.prepare(`
-      SELECT * FROM orders WHERE order_number = ?
-    `).get(req.params.orderNumber);
+    const order = await db.get(
+      'SELECT * FROM orders WHERE order_number = $1',
+      [req.params.orderNumber]
+    );
 
     if (!order) {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    const items = db.prepare(`
-      SELECT * FROM order_items WHERE order_id = ?
-    `).all(order.id);
+    const items = await db.all(
+      'SELECT * FROM order_items WHERE order_id = $1',
+      [order.id]
+    );
 
     res.json({
       ...order,
@@ -228,18 +225,19 @@ app.get('/api/orders/:orderNumber', (req, res) => {
 
 // GET orders by phone number (Public - for order tracking)
 // Only returns non-delivered orders
-app.get('/api/track/phone/:phoneNumber', (req, res) => {
+app.get('/api/track/phone/:phoneNumber', async (req, res) => {
   try {
     const phoneNumber = req.params.phoneNumber;
     
     // Get all non-delivered orders for this phone number
-    const orders = db.prepare(`
-      SELECT * FROM orders 
-      WHERE customer_phone = ? 
-      AND status != 'delivered'
-      AND status != 'cancelled'
-      ORDER BY created_at DESC
-    `).all(phoneNumber);
+    const orders = await db.all(
+      `SELECT * FROM orders 
+       WHERE customer_phone = $1 
+       AND status != 'delivered'
+       AND status != 'cancelled'
+       ORDER BY created_at DESC`,
+      [phoneNumber]
+    );
 
     if (orders.length === 0) {
       return res.json({ 
@@ -249,16 +247,17 @@ app.get('/api/track/phone/:phoneNumber', (req, res) => {
     }
 
     // Get items for each order
-    const ordersWithItems = orders.map(order => {
-      const items = db.prepare(`
-        SELECT * FROM order_items WHERE order_id = ?
-      `).all(order.id);
+    const ordersWithItems = await Promise.all(orders.map(async (order) => {
+      const items = await db.all(
+        'SELECT * FROM order_items WHERE order_id = $1',
+        [order.id]
+      );
       
       return {
         ...order,
         items
       };
-    });
+    }));
 
     res.json({
       message: 'Orders found',
@@ -272,11 +271,12 @@ app.get('/api/track/phone/:phoneNumber', (req, res) => {
 });
 
 // GET order tracking by order number (with detailed status)
-app.get('/api/track/:orderNumber', (req, res) => {
+app.get('/api/track/:orderNumber', async (req, res) => {
   try {
-    const order = db.prepare(`
-      SELECT * FROM orders WHERE order_number = ?
-    `).get(req.params.orderNumber);
+    const order = await db.get(
+      'SELECT * FROM orders WHERE order_number = $1',
+      [req.params.orderNumber]
+    );
 
     if (!order) {
       return res.status(404).json({ 
@@ -285,9 +285,10 @@ app.get('/api/track/:orderNumber', (req, res) => {
       });
     }
 
-    const items = db.prepare(`
-      SELECT * FROM order_items WHERE order_id = ?
-    `).all(order.id);
+    const items = await db.all(
+      'SELECT * FROM order_items WHERE order_id = $1',
+      [order.id]
+    );
 
     // Calculate order progress
     const statusProgress = {
@@ -325,29 +326,28 @@ app.get('/api/track/:orderNumber', (req, res) => {
 // ==================== ADMIN ROUTES (Protected) ====================
 
 // UPDATE product price (admin only)
-app.put('/api/admin/products/:id', verifyAdmin, (req, res) => {
+app.put('/api/admin/products/:id', verifyAdmin, async (req, res) => {
   try {
     const { price, deliveryCharge, description, badge } = req.body;
     
-    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+    const product = await db.get('SELECT * FROM products WHERE id = $1', [req.params.id]);
     
     if (!product) {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    const update = db.prepare(`
-      UPDATE products 
-      SET price = COALESCE(?, price),
-          delivery_charge = COALESCE(?, delivery_charge),
-          description = COALESCE(?, description),
-          badge = COALESCE(?, badge),
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
+    await db.query(
+      `UPDATE products 
+       SET price = COALESCE($1, price),
+           delivery_charge = COALESCE($2, delivery_charge),
+           description = COALESCE($3, description),
+           badge = COALESCE($4, badge),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $5`,
+      [price, deliveryCharge, description, badge, req.params.id]
+    );
 
-    update.run(price, deliveryCharge, description, badge, req.params.id);
-
-    const updatedProduct = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+    const updatedProduct = await db.get('SELECT * FROM products WHERE id = $1', [req.params.id]);
 
     res.json({
       success: true,
@@ -361,11 +361,11 @@ app.put('/api/admin/products/:id', verifyAdmin, (req, res) => {
 });
 
 // GET all orders (admin only)
-app.get('/api/admin/orders', verifyAdmin, (req, res) => {
+app.get('/api/admin/orders', verifyAdmin, async (req, res) => {
   try {
-    const orders = db.prepare(`
-      SELECT * FROM orders ORDER BY created_at DESC
-    `).all();
+    const orders = await db.all(
+      'SELECT * FROM orders ORDER BY created_at DESC'
+    );
 
     res.json(orders);
   } catch (error) {
@@ -375,7 +375,7 @@ app.get('/api/admin/orders', verifyAdmin, (req, res) => {
 });
 
 // UPDATE order status (admin only)
-app.put('/api/admin/orders/:id/status', verifyAdmin, (req, res) => {
+app.put('/api/admin/orders/:id/status', verifyAdmin, async (req, res) => {
   try {
     const { status } = req.body;
     
@@ -383,13 +383,12 @@ app.put('/api/admin/orders/:id/status', verifyAdmin, (req, res) => {
       return res.status(400).json({ error: 'Invalid status' });
     }
 
-    const update = db.prepare(`
-      UPDATE orders 
-      SET status = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
-
-    update.run(status, req.params.id);
+    await db.query(
+      `UPDATE orders 
+       SET status = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [status, req.params.id]
+    );
 
     res.json({
       success: true,
