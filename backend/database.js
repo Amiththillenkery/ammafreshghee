@@ -4,16 +4,22 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// PostgreSQL connection pool
+// Parse connection string to force IPv4
+const connectionString = process.env.DATABASE_URL;
+
+// PostgreSQL connection pool with IPv4 forced
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: connectionString,
   ssl: {
     rejectUnauthorized: false
   },
-  // Prefer IPv4 to avoid network issues
+  // Force IPv4 to avoid IPv6 network issues on Render
   connectionTimeoutMillis: 10000,
   idleTimeoutMillis: 30000,
-  max: 20
+  max: 20,
+  // Additional options for better compatibility
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
 });
 
 // Test connection
