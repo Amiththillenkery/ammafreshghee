@@ -31,13 +31,34 @@ const verifyAdmin = (req, res, next) => {
   next();
 };
 
+// Helper function to convert PostgreSQL numeric strings to JavaScript numbers
+const formatProduct = (product) => ({
+  ...product,
+  price: parseFloat(product.price),
+  delivery_charge: parseFloat(product.delivery_charge),
+  grams: parseInt(product.grams)
+});
+
+const formatOrderItem = (item) => ({
+  ...item,
+  price: parseFloat(item.price),
+  quantity: parseInt(item.quantity),
+  subtotal: parseFloat(item.subtotal)
+});
+
+const formatOrder = (order) => ({
+  ...order,
+  total_amount: parseFloat(order.total_amount),
+  delivery_charge: parseFloat(order.delivery_charge)
+});
+
 // ==================== PUBLIC ROUTES ====================
 
 // GET all products (read-only for customers)
 app.get('/api/products', async (req, res) => {
   try {
     const products = await db.all('SELECT * FROM products ORDER BY grams ASC');
-    res.json(products);
+    res.json(products.map(formatProduct));
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ error: 'Failed to fetch products' });
@@ -53,7 +74,7 @@ app.get('/api/products/:id', async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
     
-    res.json(product);
+    res.json(formatProduct(product));
   } catch (error) {
     console.error('Error fetching product:', error);
     res.status(500).json({ error: 'Failed to fetch product' });
@@ -214,8 +235,8 @@ app.get('/api/orders/:orderNumber', async (req, res) => {
     );
 
     res.json({
-      ...order,
-      items
+      ...formatOrder(order),
+      items: items.map(formatOrderItem)
     });
   } catch (error) {
     console.error('Error fetching order:', error);
@@ -254,8 +275,8 @@ app.get('/api/track/phone/:phoneNumber', async (req, res) => {
       );
       
       return {
-        ...order,
-        items
+        ...formatOrder(order),
+        items: items.map(formatOrderItem)
       };
     }));
 
@@ -304,8 +325,8 @@ app.get('/api/track/:orderNumber', async (req, res) => {
 
     res.json({
       order: {
-        ...order,
-        items
+        ...formatOrder(order),
+        items: items.map(formatOrderItem)
       },
       tracking: {
         currentStatus: order.status,
@@ -352,7 +373,7 @@ app.put('/api/admin/products/:id', verifyAdmin, async (req, res) => {
     res.json({
       success: true,
       message: 'Product updated successfully',
-      product: updatedProduct
+      product: formatProduct(updatedProduct)
     });
   } catch (error) {
     console.error('Error updating product:', error);
@@ -367,7 +388,7 @@ app.get('/api/admin/orders', verifyAdmin, async (req, res) => {
       'SELECT * FROM orders ORDER BY created_at DESC'
     );
 
-    res.json(orders);
+    res.json(orders.map(formatOrder));
   } catch (error) {
     console.error('Error fetching orders:', error);
     res.status(500).json({ error: 'Failed to fetch orders' });

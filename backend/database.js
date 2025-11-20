@@ -1,8 +1,12 @@
 import pkg from 'pg';
-const { Pool } = pkg;
+const { Pool, types } = pkg;
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+// Configure pg to parse numeric/decimal types as JavaScript numbers
+// Type ID 1700 is NUMERIC/DECIMAL in PostgreSQL
+types.setTypeParser(1700, (val) => parseFloat(val));
 
 // Parse connection string to force IPv4
 const connectionString = process.env.DATABASE_URL;
