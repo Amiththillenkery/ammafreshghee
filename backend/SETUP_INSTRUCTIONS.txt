@@ -1,0 +1,55 @@
+=======================================================
+AMMA FRESH - QUICK POSTGRESQL SETUP
+=======================================================
+
+✅ Your Supabase database is connected and ready!
+
+📝 STEP 1: Create .env file
+---------------------------
+Create a file named ".env" in the backend folder with:
+
+DATABASE_URL=postgresql://postgres:Amith@154698738@db.uggqnfwdhbcvqyjssivw.supabase.co:5432/postgres
+PORT=3000
+NODE_ENV=production
+ADMIN_API_KEY=your-secret-key-change-this
+NOTIFICATION_METHOD=email
+EMAIL_SERVICE=gmail
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+BUSINESS_NAME=Amma Fresh
+BUSINESS_PHONE=+91-1234567890
+BACKEND_URL=https://ammafreshghee.onrender.com
+
+
+🔄 STEP 2: Switch to PostgreSQL
+--------------------------------
+Windows PowerShell:
+
+cd backend
+Copy-Item database.js database.sqlite.backup.js
+Copy-Item databasePostgres.js database.js
+npm start
+
+
+🚀 STEP 3: Deploy to Render
+----------------------------
+1. Go to Render Dashboard
+2. Select your backend service
+3. Environment → Add Variable:
+   - Key: DATABASE_URL
+   - Value: postgresql://postgres:Amith@154698738@...
+4. Save & Deploy
+
+
+✅ Done! Your app now uses Supabase PostgreSQL!
+
+=======================================================
+
+💡 Test locally:
+   npm start
+   curl http://localhost:3000/api/products
+
+📚 Full guide: backend/SUPABASE_SETUP.md
+
+=======================================================
+
