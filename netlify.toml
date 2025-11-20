@@ -1,0 +1,23 @@
+# Netlify configuration for Vue.js SPA
+
+[build]
+  # Build command
+  command = "npm run build"
+  # Output directory
+  publish = "dist"
+
+# SPA redirect rule
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Additional headers for security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer-when-downgrade"
+

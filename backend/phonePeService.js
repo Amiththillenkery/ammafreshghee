@@ -27,6 +27,9 @@ class PhonePeService {
         envType
       );
       console.log('✓ PhonePe SDK initialized successfully');
+      
+      // Note: SDK may try to send analytics events which can cause CORS warnings
+      // These are harmless and don't affect payment functionality
     } catch (error) {
       console.error('✗ PhonePe SDK initialization failed:', error.message);
       console.error('Error details:', error);
@@ -70,10 +73,13 @@ class PhonePeService {
         .build();
 
       // Build payment request using SDK builder pattern
+      // Add transaction ID to redirect URL for frontend verification
+      const redirectUrlWithParams = `${this.redirectUrl}?merchantOrderId=${merchantOrderId}`;
+      
       const request = StandardCheckoutPayRequest.builder()
         .merchantOrderId(merchantOrderId)
         .amount(amount * 100) // Amount in paise
-        .redirectUrl(this.redirectUrl)
+        .redirectUrl(redirectUrlWithParams)
         .metaInfo(metaInfo)
         .build();
 

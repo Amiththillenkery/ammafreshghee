@@ -97,7 +97,11 @@ const merchantTransactionId = ref('');
 onMounted(async () => {
   // Get URL parameters
   const urlParams = new URLSearchParams(window.location.search);
-  const transactionId = urlParams.get('transactionId') || urlParams.get('merchantTransactionId');
+  const transactionId = urlParams.get('transactionId') 
+    || urlParams.get('merchantTransactionId')
+    || urlParams.get('merchantOrderId');
+  
+  console.log('Payment callback - URL params:', Object.fromEntries(urlParams));
   
   // Get stored order details
   const storedOrder = localStorage.getItem('pendingOrder');
@@ -109,6 +113,7 @@ onMounted(async () => {
         totalAmount: orderData.totalAmount
       };
       merchantTransactionId.value = orderData.merchantTransactionId;
+      console.log('Retrieved stored order:', orderData);
     } catch (error) {
       console.error('Error parsing stored order:', error);
     }
@@ -117,12 +122,14 @@ onMounted(async () => {
   // Use transaction ID from URL or stored data
   const txnId = transactionId || merchantTransactionId.value;
 
+  console.log('Using transaction ID for verification:', txnId);
+
   if (txnId) {
     await verifyPayment(txnId);
   } else {
     isProcessing.value = false;
     paymentStatus.value = 'failed';
-    errorMessage.value = 'Transaction ID not found';
+    errorMessage.value = 'Transaction ID not found. Please check your order status.';
   }
 });
 
