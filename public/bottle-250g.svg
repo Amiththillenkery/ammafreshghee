@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient id="bottleGlass250" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8f9fa;stop-opacity:0.9" />
+      <stop offset="50%" style="stop-color:#ffffff;stop-opacity:0.95" />
+      <stop offset="100%" style="stop-color:#e9ecef;stop-opacity:0.9" />
+    </linearGradient>
+    <linearGradient id="gheeColor250" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#d4af37;stop-opacity:0.9" />
+    </linearGradient>
+    <linearGradient id="capColor250" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#d4af37;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#b8941f;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Bottle Body (Medium) -->
+  <rect x="80" y="140" width="140" height="230" rx="10" fill="url(#bottleGlass250)" stroke="#dee2e6" stroke-width="2"/>
+  
+  <!-- Ghee Inside -->
+  <rect x="85" y="185" width="130" height="180" rx="6" fill="url(#gheeColor250)"/>
+  
+  <!-- Bottle Neck -->
+  <rect x="115" y="90" width="70" height="55" rx="5" fill="url(#bottleGlass250)" stroke="#dee2e6" stroke-width="2"/>
+  
+  <!-- Cap -->
+  <ellipse cx="150" cy="85" rx="40" ry="14" fill="url(#capColor250)" stroke="#b8941f" stroke-width="2"/>
+  <rect x="110" y="75" width="80" height="16" fill="url(#capColor250)"/>
+  <ellipse cx="150" cy="75" rx="40" ry="14" fill="#d4af37" stroke="#b8941f" stroke-width="2"/>
+  
+  <!-- Label Background -->
+  <rect x="90" y="220" width="120" height="110" rx="5" fill="#faf8f5" opacity="0.95"/>
+  
+  <!-- Logo Circle on Label -->
+  <circle cx="150" cy="250" r="20" fill="#d4af37"/>
+  <circle cx="150" cy="250" r="17" fill="#faf8f5"/>
+  <text x="150" y="256" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#d4af37" text-anchor="middle">🧈</text>
+  
+  <!-- Brand Name -->
+  <text x="150" y="288" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#b8941f" text-anchor="middle">Amma Fresh</text>
+  
+  <!-- Product Name -->
+  <text x="150" y="305" font-family="Arial, sans-serif" font-size="11" fill="#666" text-anchor="middle">Pure Cow Ghee</text>
+  
+  <!-- Weight -->
+  <text x="150" y="323" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#d4af37" text-anchor="middle">250g</text>
+  
+  <!-- Shine Effect -->
+  <ellipse cx="120" cy="170" rx="18" ry="50" fill="white" opacity="0.3"/>
+  <ellipse cx="180" cy="260" rx="10" ry="35" fill="white" opacity="0.2"/>
+</svg>

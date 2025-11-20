@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 520" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient id="bottleGlass2kg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8f9fa;stop-opacity:0.9" />
+      <stop offset="50%" style="stop-color:#ffffff;stop-opacity:0.95" />
+      <stop offset="100%" style="stop-color:#e9ecef;stop-opacity:0.9" />
+    </linearGradient>
+    <linearGradient id="gheeColor2kg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffd700;stop-opacity:0.8" />
+      <stop offset="100%" style="stop-color:#d4af37;stop-opacity:0.9" />
+    </linearGradient>
+    <linearGradient id="capColor2kg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#d4af37;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#b8941f;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Bottle Body (2 KG - Extra Wide) -->
+  <rect x="40" y="100" width="320" height="370" rx="18" fill="url(#bottleGlass2kg)" stroke="#dee2e6" stroke-width="3"/>
+  
+  <!-- Ghee Inside -->
+  <rect x="49" y="145" width="302" height="320" rx="12" fill="url(#gheeColor2kg)"/>
+  
+  <!-- Bottle Neck -->
+  <rect x="165" y="40" width="70" height="65" rx="6" fill="url(#bottleGlass2kg)" stroke="#dee2e6" stroke-width="2"/>
+  
+  <!-- Cap -->
+  <ellipse cx="200" cy="35" rx="42" ry="16" fill="url(#capColor2kg)" stroke="#b8941f" stroke-width="2"/>
+  <rect x="158" y="23" width="84" height="18" fill="url(#capColor2kg)"/>
+  <ellipse cx="200" cy="23" rx="42" ry="16" fill="#d4af37" stroke="#b8941f" stroke-width="2"/>
+  
+  <!-- Label Background -->
+  <rect x="80" y="240" width="240" height="190" rx="10" fill="#faf8f5" opacity="0.95"/>
+  
+  <!-- Premium Badge -->
+  <rect x="90" y="250" width="220" height="30" rx="15" fill="#d4af37"/>
+  <text x="200" y="270" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white" text-anchor="middle">★ PREMIUM PACK ★</text>
+  
+  <!-- Logo Circle on Label -->
+  <circle cx="200" cy="325" r="35" fill="#d4af37"/>
+  <circle cx="200" cy="325" r="30" fill="#faf8f5"/>
+  <text x="200" y="337" font-family="Arial, sans-serif" font-size="34" font-weight="bold" fill="#d4af37" text-anchor="middle">🧈</text>
+  
+  <!-- Brand Name -->
+  <text x="200" y="378" font-family="Arial, sans-serif" font-size="28" font-weight="bold" fill="#b8941f" text-anchor="middle">Amma Fresh</text>
+  
+  <!-- Product Name -->
+  <text x="200" y="402" font-family="Arial, sans-serif" font-size="16" fill="#666" text-anchor="middle">Pure Cow Ghee</text>
+  
+  <!-- Weight -->
+  <text x="200" y="425" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#d4af37" text-anchor="middle">2 KG</text>
+  
+  <!-- Free Delivery Badge -->
+  <rect x="270" y="110" width="75" height="26" rx="13" fill="#22c55e"/>
+  <text x="307.5" y="127" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="white" text-anchor="middle">FREE 🚚</text>
+  
+  <!-- Shine Effect -->
+  <ellipse cx="100" cy="130" rx="28" ry="90" fill="white" opacity="0.3"/>
+  <ellipse cx="300" cy="340" rx="18" ry="60" fill="white" opacity="0.2"/>
+</svg>
