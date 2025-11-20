@@ -9,18 +9,22 @@
     "dev": "nodemon server.js",
     "keep-alive": "node keepAlive.js"
   },
-  "keywords": ["express", "sqlite", "api"],
+  "keywords": [
+    "express",
+    "sqlite",
+    "api"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
     "better-sqlite3": "^9.2.2",
+    "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "nodemailer": "^6.9.7"
+    "express": "^4.18.2",
+    "nodemailer": "^6.9.7",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
   }
 }
-
