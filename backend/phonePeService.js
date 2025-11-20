@@ -1,66 +1,61 @@
-import crypto from 'crypto';
+import { StandardCheckoutClient, Env } from 'pg-sdk-node';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 /**
- * PhonePe Payment Gateway Service
+ * PhonePe Payment Gateway Service (Official SDK)
  * Handles payment initialization, callback verification, and status checks
  */
 class PhonePeService {
   constructor() {
-    // PhonePe Test/Production Configuration
-    this.merchantId = process.env.PHONEPE_MERCHANT_ID || 'M23H2V31G7L3S_2511201935';
-    this.saltKey = process.env.PHONEPE_SALT_KEY || 'NGNmNGFmMjktMzQ1ZC00NjQ4LWFhZjYtMDk4MDQ5NzA4N2I0';
-    this.saltIndex = process.env.PHONEPE_SALT_INDEX || '1';
+    // PhonePe SDK Configuration
+    // Note: In SDK, merchantId is called clientId
+    this.clientId = process.env.PHONEPE_MERCHANT_ID || process.env.PHONEPE_CLIENT_ID || 'M23H2V31G7L3S_2511201935';
+    this.clientSecret = process.env.PHONEPE_SALT_KEY || process.env.PHONEPE_CLIENT_SECRET || 'NGNmNGFmMjktMzQ1ZC00NjQ4LWFhZjYtMDk4MDQ5NzA4N2I0';
+    this.clientVersion = parseInt(process.env.PHONEPE_SALT_INDEX || process.env.PHONEPE_CLIENT_VERSION || '1');
     
-    // API URLs
-    // Use test URL for development, production URL for live
-    this.baseUrl = process.env.PHONEPE_ENV === 'production' 
-      ? 'https://api.phonepe.com/apis/hermes'
-      : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+    // Environment: SANDBOX or PRODUCTION
+    const envType = process.env.PHONEPE_ENV === 'production' ? Env.PRODUCTION : Env.SANDBOX;
+    
+    // Initialize PhonePe SDK Client (singleton)
+    try {
+      this.client = StandardCheckoutClient.getInstance(
+        this.clientId,
+        this.clientSecret,
+        this.clientVersion,
+        envType
+      );
+      console.log('✓ PhonePe SDK initialized successfully');
+    } catch (error) {
+      console.error('✗ PhonePe SDK initialization failed:', error.message);
+      this.client = null;
+    }
     
     // Redirect URLs - Update these with your actual domain
     this.redirectUrl = process.env.PHONEPE_REDIRECT_URL || 'http://localhost:5173/payment/callback';
     this.callbackUrl = process.env.PHONEPE_CALLBACK_URL || 'https://ammafreshghee.onrender.com/api/payment/callback';
+    this.env = envType;
   }
 
   /**
-   * Generate checksum for PhonePe API request
-   * Formula: SHA256(base64(payload) + endpoint + saltKey) + ### + saltIndex
-   */
-  generateChecksum(payload, endpoint = '/pg/v1/pay') {
-    const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-    const string = base64Payload + endpoint + this.saltKey;
-    const sha256 = crypto.createHash('sha256').update(string).digest('hex');
-    return sha256 + '###' + this.saltIndex;
-  }
-
-  /**
-   * Verify checksum from PhonePe callback
-   */
-  verifyChecksum(base64Response, receivedChecksum) {
-    const string = base64Response + this.saltKey;
-    const sha256 = crypto.createHash('sha256').update(string).digest('hex');
-    const expectedChecksum = sha256 + '###' + this.saltIndex;
-    return expectedChecksum === receivedChecksum;
-  }
-
-  /**
-   * Initialize PhonePe payment
+   * Initialize PhonePe payment using official SDK
    * @param {Object} orderDetails - Order details including amount, orderId, customer info
    * @returns {Promise} Payment initialization response
    */
   async initiatePayment(orderDetails) {
     try {
+      if (!this.client) {
+        throw new Error('PhonePe SDK client not initialized. Check your credentials.');
+      }
+
       const { orderId, amount, customerPhone, customerName, customerEmail } = orderDetails;
       
       // Generate unique transaction ID
       const merchantTransactionId = `TXN_${orderId}_${Date.now()}`;
       
-      // Prepare payment payload
-      const payload = {
-        merchantId: this.merchantId,
+      // Create payment request using SDK
+      const paymentRequest = {
         merchantTransactionId: merchantTransactionId,
         merchantUserId: `USER_${customerPhone}`,
         amount: amount * 100, // Convert to paise (smallest currency unit)
@@ -73,33 +68,26 @@ class PhonePeService {
         }
       };
 
-      // Generate checksum
-      const checksum = this.generateChecksum(payload);
-      const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-
-      // Make API request to PhonePe
-      const response = await fetch(`${this.baseUrl}/pg/v1/pay`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-VERIFY': checksum
-        },
-        body: JSON.stringify({
-          request: base64Payload
-        })
+      console.log('Initiating PhonePe payment with SDK:', {
+        merchantTransactionId,
+        amount: amount * 100,
+        redirectUrl: this.redirectUrl
       });
 
-      const responseData = await response.json();
+      // Initiate payment using SDK
+      const response = await this.client.initiatePayment(paymentRequest);
 
-      if (responseData.success) {
+      console.log('PhonePe SDK Response:', response);
+
+      if (response && response.success && response.data) {
         return {
           success: true,
           merchantTransactionId,
-          paymentUrl: responseData.data.instrumentResponse.redirectInfo.url,
+          paymentUrl: response.data.instrumentResponse?.redirectInfo?.url || response.data.redirectUrl,
           message: 'Payment initiated successfully'
         };
       } else {
-        throw new Error(responseData.message || 'Payment initiation failed');
+        throw new Error(response?.message || 'Payment initiation failed');
       }
     } catch (error) {
       console.error('PhonePe payment initiation error:', error);
@@ -112,42 +100,35 @@ class PhonePeService {
   }
 
   /**
-   * Check payment status
+   * Check payment status using official SDK
    * @param {String} merchantTransactionId - Transaction ID
    * @returns {Promise} Payment status
    */
   async checkPaymentStatus(merchantTransactionId) {
     try {
-      const endpoint = `/pg/v1/status/${this.merchantId}/${merchantTransactionId}`;
-      
-      // Generate checksum for status check
-      const string = endpoint + this.saltKey;
-      const sha256 = crypto.createHash('sha256').update(string).digest('hex');
-      const checksum = sha256 + '###' + this.saltIndex;
+      if (!this.client) {
+        throw new Error('PhonePe SDK client not initialized');
+      }
 
-      const response = await fetch(`${this.baseUrl}${endpoint}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-VERIFY': checksum,
-          'X-MERCHANT-ID': this.merchantId
-        }
-      });
+      console.log('Checking payment status for:', merchantTransactionId);
 
-      const responseData = await response.json();
+      // Check status using SDK
+      const response = await this.client.checkOrderStatus(merchantTransactionId);
 
-      if (responseData.success) {
+      console.log('PhonePe Status Response:', response);
+
+      if (response && response.success) {
         return {
           success: true,
-          status: responseData.code,
-          message: responseData.message,
-          data: responseData.data
+          status: response.code,
+          message: response.message,
+          data: response.data
         };
       } else {
         return {
           success: false,
           status: 'FAILED',
-          message: responseData.message || 'Payment failed'
+          message: response?.message || 'Payment failed'
         };
       }
     } catch (error) {
@@ -162,35 +143,40 @@ class PhonePeService {
   }
 
   /**
-   * Handle PhonePe callback
+   * Handle PhonePe callback using official SDK
    * @param {Object} callbackData - Callback data from PhonePe
    * @returns {Object} Processed callback result
    */
   async handleCallback(callbackData) {
     try {
+      if (!this.client) {
+        throw new Error('PhonePe SDK client not initialized');
+      }
+
       const { response: base64Response, checksum } = callbackData;
 
-      // Verify checksum
-      if (!this.verifyChecksum(base64Response, checksum)) {
+      console.log('Handling PhonePe callback...');
+
+      // Verify and decode webhook using SDK
+      const webhookResponse = await this.client.verifyWebhook(base64Response, checksum);
+
+      if (webhookResponse && webhookResponse.verified) {
+        const decodedData = webhookResponse.data;
+        
+        return {
+          success: true,
+          verified: true,
+          data: decodedData,
+          paymentStatus: decodedData.code,
+          transactionId: decodedData.data?.merchantTransactionId
+        };
+      } else {
         return {
           success: false,
-          message: 'Invalid checksum',
+          message: 'Invalid webhook signature',
           verified: false
         };
       }
-
-      // Decode response
-      const decodedResponse = JSON.parse(
-        Buffer.from(base64Response, 'base64').toString('utf-8')
-      );
-
-      return {
-        success: true,
-        verified: true,
-        data: decodedResponse,
-        paymentStatus: decodedResponse.code,
-        transactionId: decodedResponse.data?.merchantTransactionId
-      };
     } catch (error) {
       console.error('PhonePe callback handling error:', error);
       return {
@@ -202,18 +188,23 @@ class PhonePeService {
   }
 
   /**
-   * Test PhonePe configuration
+   * Test PhonePe SDK configuration
    */
   testConfiguration() {
-    console.log('\n╔═══════════════════════════════════════╗');
-    console.log('║   💳 PhonePe Payment Configuration  ║');
-    console.log('╠═══════════════════════════════════════╣');
-    console.log(`║  Environment: ${process.env.PHONEPE_ENV || 'test (sandbox)'}`);
-    console.log(`║  Merchant ID: ${this.merchantId}`);
-    console.log(`║  Base URL: ${this.baseUrl}`);
+    console.log('\n╔════════════════════════════════════════════╗');
+    console.log('║   💳 PhonePe SDK Configuration          ║');
+    console.log('╠════════════════════════════════════════════╣');
+    console.log(`║  SDK Status: ${this.client ? '✓ Initialized' : '✗ Failed'}`);
+    console.log(`║  Environment: ${this.env === Env.PRODUCTION ? 'PRODUCTION' : 'SANDBOX'}`);
+    console.log(`║  Client ID (Merchant): ${this.clientId}`);
+    console.log(`║  Client Version: ${this.clientVersion}`);
     console.log(`║  Redirect URL: ${this.redirectUrl}`);
     console.log(`║  Callback URL: ${this.callbackUrl}`);
-    console.log('╚═══════════════════════════════════════╝\n');
+    console.log('╚════════════════════════════════════════════╝\n');
+    
+    if (!this.client) {
+      console.error('⚠️  PhonePe SDK initialization failed. Check your credentials!');
+    }
   }
 }
 
