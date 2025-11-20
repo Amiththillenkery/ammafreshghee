@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import db, { initializeDatabase, seedProducts } from './database.js';
 import { notificationService } from './notificationService.js';
+import { phonePeService } from './phonePeService.js';
 
 dotenv.config();
 
@@ -344,6 +345,256 @@ app.get('/api/track/:orderNumber', async (req, res) => {
   }
 });
 
+// ==================== PHONEPE PAYMENT ROUTES ====================
+
+// POST Initiate PhonePe payment
+app.post('/api/payment/initiate', async (req, res) => {
+  try {
+    const {
+      customerName,
+      customerPhone,
+      customerEmail,
+      deliveryAddress,
+      city,
+      pincode,
+      landmark,
+      items,
+      subtotal,
+      deliveryCharge,
+      totalAmount
+    } = req.body;
+
+    // Validate required fields
+    if (!customerName || !customerPhone || !deliveryAddress || !city || !pincode || !items || items.length === 0) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Verify prices from database (security check)
+    let calculatedSubtotal = 0;
+    const verifiedItems = [];
+
+    for (const item of items) {
+      const product = await db.get('SELECT * FROM products WHERE id = $1', [item.productId]);
+      
+      if (!product) {
+        return res.status(400).json({ error: `Product with ID ${item.productId} not found` });
+      }
+
+      const itemTotal = product.price * item.quantity;
+      calculatedSubtotal += itemTotal;
+
+      verifiedItems.push({
+        productId: product.id,
+        productName: product.name,
+        quantity: item.quantity,
+        pricePerUnit: product.price,
+        totalPrice: itemTotal
+      });
+    }
+
+    // Calculate delivery charge
+    const hasFreeDel = verifiedItems.some(item => {
+      const product = verifiedItems.find(v => v.productId === item.productId);
+      return product && product.pricePerUnit >= 1200;
+    });
+    
+    const calculatedDeliveryCharge = hasFreeDel ? 0 : 49;
+    const calculatedTotal = calculatedSubtotal + calculatedDeliveryCharge;
+
+    // Generate unique order number (will be used for payment reference)
+    const orderNumber = `AFK${Date.now()}`;
+
+    // Create pending order in database
+    const orderResult = await db.query(
+      `INSERT INTO orders (
+        order_number, customer_name, customer_phone, customer_email,
+        delivery_address, city, pincode, landmark,
+        subtotal, delivery_charge, total_amount, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING id`,
+      [
+        orderNumber,
+        customerName,
+        customerPhone,
+        customerEmail || null,
+        deliveryAddress,
+        city,
+        pincode,
+        landmark || null,
+        calculatedSubtotal,
+        calculatedDeliveryCharge,
+        calculatedTotal,
+        'payment_pending' // New status for orders awaiting payment
+      ]
+    );
+
+    const orderId = orderResult.rows[0].id;
+
+    // Insert order items
+    for (const item of verifiedItems) {
+      await db.query(
+        `INSERT INTO order_items (
+          order_id, product_id, product_name, quantity, price_per_unit, total_price
+        ) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          orderId,
+          item.productId,
+          item.productName,
+          item.quantity,
+          item.pricePerUnit,
+          item.totalPrice
+        ]
+      );
+    }
+
+    // Initiate PhonePe payment
+    const paymentResult = await phonePeService.initiatePayment({
+      orderId: orderNumber,
+      amount: calculatedTotal,
+      customerPhone,
+      customerName,
+      customerEmail: customerEmail || ''
+    });
+
+    if (!paymentResult.success) {
+      // Update order status to failed
+      await db.query(
+        `UPDATE orders SET status = 'payment_failed' WHERE id = $1`,
+        [orderId]
+      );
+      
+      return res.status(500).json({
+        success: false,
+        error: 'Payment initiation failed',
+        message: paymentResult.message
+      });
+    }
+
+    // Store transaction ID in order for tracking
+    await db.query(
+      `UPDATE orders SET payment_transaction_id = $1 WHERE id = $2`,
+      [paymentResult.merchantTransactionId, orderId]
+    );
+
+    res.status(200).json({
+      success: true,
+      orderNumber,
+      orderId,
+      paymentUrl: paymentResult.paymentUrl,
+      merchantTransactionId: paymentResult.merchantTransactionId,
+      message: 'Payment initiated successfully'
+    });
+
+  } catch (error) {
+    console.error('Error initiating payment:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to initiate payment',
+      message: error.message 
+    });
+  }
+});
+
+// POST PhonePe payment callback (webhook)
+app.post('/api/payment/callback', async (req, res) => {
+  try {
+    console.log('PhonePe callback received:', req.body);
+
+    const callbackResult = await phonePeService.handleCallback(req.body);
+
+    if (!callbackResult.verified) {
+      console.error('Invalid callback checksum');
+      return res.status(400).json({ error: 'Invalid callback' });
+    }
+
+    const { data, paymentStatus } = callbackResult;
+    const transactionId = data.data?.merchantTransactionId;
+
+    // Find order by transaction ID
+    const order = await db.get(
+      'SELECT * FROM orders WHERE payment_transaction_id = $1',
+      [transactionId]
+    );
+
+    if (!order) {
+      console.error('Order not found for transaction:', transactionId);
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Update order status based on payment status
+    let newStatus = 'payment_failed';
+    if (paymentStatus === 'PAYMENT_SUCCESS') {
+      newStatus = 'pending'; // Order is now pending for processing
+      
+      // Send order confirmation notification
+      const orderItems = await db.all(
+        'SELECT * FROM order_items WHERE order_id = $1',
+        [order.id]
+      );
+
+      notificationService.sendOrderConfirmation({
+        customerName: order.customer_name,
+        customerPhone: order.customer_phone,
+        customerEmail: order.customer_email,
+        orderNumber: order.order_number,
+        totalAmount: parseFloat(order.total_amount),
+        items: orderItems.map(item => ({
+          productName: item.product_name,
+          quantity: parseInt(item.quantity),
+          pricePerUnit: parseFloat(item.price_per_unit),
+          totalPrice: parseFloat(item.total_price)
+        }))
+      }).catch(err => console.error('Notification error:', err));
+    }
+
+    await db.query(
+      `UPDATE orders SET status = $1, payment_status = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [newStatus, paymentStatus, order.id]
+    );
+
+    console.log(`Order ${order.order_number} payment status: ${paymentStatus}`);
+
+    res.status(200).json({ success: true, message: 'Callback processed' });
+
+  } catch (error) {
+    console.error('Error processing payment callback:', error);
+    res.status(500).json({ error: 'Failed to process callback' });
+  }
+});
+
+// GET Check payment status
+app.get('/api/payment/status/:transactionId', async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+
+    const statusResult = await phonePeService.checkPaymentStatus(transactionId);
+
+    // Find order by transaction ID
+    const order = await db.get(
+      'SELECT * FROM orders WHERE payment_transaction_id = $1',
+      [transactionId]
+    );
+
+    res.json({
+      success: true,
+      paymentStatus: statusResult.status,
+      message: statusResult.message,
+      order: order ? {
+        orderNumber: order.order_number,
+        status: order.status,
+        totalAmount: parseFloat(order.total_amount)
+      } : null
+    });
+
+  } catch (error) {
+    console.error('Error checking payment status:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to check payment status' 
+    });
+  }
+});
+
 // ==================== ADMIN ROUTES (Protected) ====================
 
 // UPDATE product price (admin only)
@@ -488,6 +739,11 @@ app.listen(PORT, '0.0.0.0', () => {
   ║  • POST /api/orders (sends notifications 📧📱)
   ║  • GET  /api/orders/:orderNumber
   ║  
+  ║  PhonePe Payment (Public):
+  ║  • POST /api/payment/initiate
+  ║  • POST /api/payment/callback
+  ║  • GET  /api/payment/status/:transactionId
+  ║  
   ║  Order Tracking (Public):
   ║  • GET  /api/track/:orderNumber
   ║  • GET  /api/track/phone/:phoneNumber
@@ -502,6 +758,9 @@ app.listen(PORT, '0.0.0.0', () => {
   
   // Test notification configuration on startup
   notificationService.testConfiguration();
+  
+  // Test PhonePe configuration on startup
+  phonePeService.testConfiguration();
 });
 
 export default app;

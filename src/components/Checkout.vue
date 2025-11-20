@@ -119,8 +119,18 @@
                 />
               </div>
 
-              <button type="submit" class="submit-button">
-                Place Order - ₹{{ cartTotal }}
+              <!-- Error Message -->
+              <div v-if="paymentError" class="error-message">
+                <p>{{ paymentError }}</p>
+              </div>
+
+              <button type="submit" class="submit-button" :disabled="isProcessingPayment">
+                <span v-if="!isProcessingPayment">
+                  Proceed to Payment - ₹{{ cartTotal }}
+                </span>
+                <span v-else>
+                  Processing... Please wait
+                </span>
               </button>
             </form>
           </div>
@@ -162,6 +172,8 @@ const {
 
 const orderPlaced = ref(false);
 const orderNumber = ref('');
+const isProcessingPayment = ref(false);
+const paymentError = ref('');
 
 const deliveryDetails = reactive<DeliveryDetails>({
   name: '',
@@ -174,6 +186,9 @@ const deliveryDetails = reactive<DeliveryDetails>({
 
 const handleSubmit = async () => {
   try {
+    isProcessingPayment.value = true;
+    paymentError.value = '';
+
     // Prepare order data for API
     const orderData = {
       customerName: deliveryDetails.name,
@@ -192,17 +207,28 @@ const handleSubmit = async () => {
       totalAmount: cartTotal.value
     };
 
-    // Send order to backend
-    const response = await apiService.createOrder(orderData);
+    // Initiate PhonePe payment
+    const response = await apiService.initiatePayment(orderData);
     
-    console.log('Order created successfully:', response);
-    orderNumber.value = response.orderNumber;
-    orderPlaced.value = true;
+    if (response.success && response.paymentUrl) {
+      console.log('Payment initiated:', response);
+      
+      // Store transaction details in localStorage for callback handling
+      localStorage.setItem('pendingOrder', JSON.stringify({
+        orderNumber: response.orderNumber,
+        merchantTransactionId: response.merchantTransactionId,
+        totalAmount: cartTotal.value
+      }));
+      
+      // Redirect to PhonePe payment page
+      window.location.href = response.paymentUrl;
+    } else {
+      throw new Error(response.message || 'Failed to initiate payment');
+    }
   } catch (error) {
-    console.error('Error placing order:', error);
-    // Still show success message for better UX
-    // In production, you might want to show an error message
-    orderPlaced.value = true;
+    console.error('Error initiating payment:', error);
+    paymentError.value = error instanceof Error ? error.message : 'Failed to initiate payment. Please try again.';
+    isProcessingPayment.value = false;
   }
 };
 
@@ -389,9 +415,6 @@ const handleClose = () => {
 }
 
 /* Delivery Form */
-.delivery-form-section {
-}
-
 .delivery-form {
   display: flex;
   flex-direction: column;
@@ -439,6 +462,21 @@ const handleClose = () => {
   min-height: 80px;
 }
 
+.error-message {
+  padding: 12px 16px;
+  background: #fee;
+  border: 2px solid #fcc;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.error-message p {
+  color: #c33;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
 .submit-button {
   width: 100%;
   padding: 16px;
@@ -453,10 +491,16 @@ const handleClose = () => {
   margin-top: 10px;
 }
 
-.submit-button:hover {
+.submit-button:hover:not(:disabled) {
   background: var(--primary-dark);
   transform: translateY(-2px);
   box-shadow: 0 8px 24px rgba(212, 175, 55, 0.4);
+}
+
+.submit-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Success Message */

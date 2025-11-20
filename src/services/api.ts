@@ -42,6 +42,26 @@ interface OrderResponse {
   totalAmount: number;
 }
 
+interface PaymentInitiateResponse {
+  success: boolean;
+  orderNumber: string;
+  orderId: number;
+  paymentUrl: string;
+  merchantTransactionId: string;
+  message: string;
+}
+
+interface PaymentStatusResponse {
+  success: boolean;
+  paymentStatus: string;
+  message: string;
+  order?: {
+    orderNumber: string;
+    status: string;
+    totalAmount: number;
+  };
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -164,8 +184,57 @@ class ApiService {
       throw error;
     }
   }
+
+  // PhonePe Payment Methods
+
+  // POST Initiate PhonePe payment
+  async initiatePayment(orderData: CreateOrderData): Promise<PaymentInitiateResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/payment/initiate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to initiate payment');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error initiating payment:', error);
+      throw error;
+    }
+  }
+
+  // GET Check payment status
+  async checkPaymentStatus(transactionId: string): Promise<PaymentStatusResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/payment/status/${transactionId}`);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to check payment status');
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error checking payment status:', error);
+      throw error;
+    }
+  }
 }
 
 export const apiService = new ApiService();
-export type { ApiProduct, OrderItem, CreateOrderData, OrderResponse };
+export type { 
+  ApiProduct, 
+  OrderItem, 
+  CreateOrderData, 
+  OrderResponse, 
+  PaymentInitiateResponse, 
+  PaymentStatusResponse 
+};
 

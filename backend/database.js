@@ -74,9 +74,31 @@ export async function initializeDatabase() {
         delivery_charge DECIMAL(10, 2) NOT NULL,
         total_amount DECIMAL(10, 2) NOT NULL,
         status VARCHAR(20) DEFAULT 'pending',
+        payment_transaction_id VARCHAR(255),
+        payment_status VARCHAR(50),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Add payment columns if they don't exist (for existing databases)
+    await client.query(`
+      DO $$ 
+      BEGIN 
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name='orders' AND column_name='payment_transaction_id'
+        ) THEN
+          ALTER TABLE orders ADD COLUMN payment_transaction_id VARCHAR(255);
+        END IF;
+        
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name='orders' AND column_name='payment_status'
+        ) THEN
+          ALTER TABLE orders ADD COLUMN payment_status VARCHAR(50);
+        END IF;
+      END $$;
     `);
 
     // Order items table

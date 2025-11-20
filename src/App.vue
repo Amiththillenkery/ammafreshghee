@@ -30,13 +30,18 @@
       </div>
     </header>
 
+    <!-- Payment Callback View -->
+    <div v-if="showPaymentCallback" class="payment-callback-view">
+      <PaymentCallback />
+    </div>
+
     <!-- Order Tracking View -->
-    <div v-if="showTrackOrder" class="track-order-view">
+    <div v-else-if="showTrackOrder" class="track-order-view">
       <OrderTracking />
     </div>
 
-    <!-- Main Content (hidden when tracking is shown) -->
-    <div v-show="!showTrackOrder" class="main-content">
+    <!-- Main Content (hidden when tracking or payment callback is shown) -->
+    <div v-show="!showTrackOrder && !showPaymentCallback" class="main-content">
       <!-- Hero Section -->
       <section class="hero">
         <div class="container">
@@ -95,8 +100,8 @@
       <Contact />
     </div>
 
-    <!-- Footer -->
-    <footer class="footer">
+    <!-- Footer (hidden on payment callback) -->
+    <footer v-if="!showPaymentCallback" class="footer">
       <div class="container">
         <div class="footer-content">
           <div class="footer-section">
@@ -160,15 +165,26 @@ import Checkout from './components/Checkout.vue';
 import About from './components/About.vue';
 import Contact from './components/Contact.vue';
 import OrderTracking from './components/OrderTracking.vue';
+import PaymentCallback from './components/PaymentCallback.vue';
 import { products, loadProducts } from './data/products';
 import { useCart } from './composables/useCart';
 
 const { cartCount, openCart } = useCart();
 const showTrackOrder = ref(false);
+const showPaymentCallback = ref(false);
+
+// Check if we're on payment callback route
+const checkRoute = () => {
+  const path = window.location.pathname;
+  if (path.includes('/payment/callback')) {
+    showPaymentCallback.value = true;
+  }
+};
 
 // Load products from API on mount
 onMounted(() => {
   loadProducts();
+  checkRoute();
 });
 
 const scrollToSection = (sectionId: string, event: Event) => {
@@ -331,6 +347,10 @@ const goToHome = () => {
 .track-order-view {
   min-height: calc(100vh - 100px);
   padding-top: 100px;
+}
+
+.payment-callback-view {
+  min-height: 100vh;
 }
 
 .header-actions {
