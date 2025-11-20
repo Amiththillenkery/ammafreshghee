@@ -147,6 +147,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue';
 import { useCart } from '../composables/useCart';
+import { apiService } from '../services/api';
 import type { DeliveryDetails } from '../types/Cart';
 
 const {
@@ -191,9 +192,6 @@ const handleSubmit = async () => {
       totalAmount: cartTotal.value
     };
 
-    // Import API service dynamically
-    const { apiService } = await import('../services/api');
-    
     // Send order to backend
     const response = await apiService.createOrder(orderData);
     
