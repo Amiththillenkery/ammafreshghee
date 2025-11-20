@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// Node.js 18+ has built-in fetch, no need for node-fetch package
 
 const BACKEND_URL = process.env.BACKEND_URL || 'https://ammafreshghee.onrender.com';
 const PING_INTERVAL = 2 * 60 * 1000; // 2 minutes in milliseconds
