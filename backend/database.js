@@ -116,6 +116,22 @@ export async function initializeDatabase() {
       )
     `);
 
+    // Keep-alive table (to prevent database sleep on free tier)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS keep_alive (
+        id SERIAL PRIMARY KEY,
+        count INTEGER NOT NULL DEFAULT 1,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Initialize keep_alive table with first record if empty
+    const keepAliveCheck = await client.query('SELECT COUNT(*) as count FROM keep_alive');
+    if (parseInt(keepAliveCheck.rows[0].count) === 0) {
+      await client.query('INSERT INTO keep_alive (count) VALUES (1)');
+      console.log('✓ Keep-alive table initialized');
+    }
+
     // Create indexes
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)

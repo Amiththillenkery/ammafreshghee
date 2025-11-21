@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import db, { initializeDatabase, seedProducts } from './database.js';
 import { notificationService } from './notificationService.js';
 import { phonePeService } from './phonePeService.js';
+import { keepAliveService } from './keepAliveService.js';
 
 dotenv.config();
 
@@ -673,11 +674,14 @@ app.put('/api/admin/orders/:id/status', verifyAdmin, async (req, res) => {
 });
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  const keepAliveStatus = await keepAliveService.getStatus();
+  
   res.json({ 
     status: 'ok', 
     message: 'Amma Fresh API is running',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    keepAlive: keepAliveStatus
   });
 });
 
@@ -761,6 +765,22 @@ app.listen(PORT, '0.0.0.0', () => {
   
   // Test PhonePe configuration on startup
   phonePeService.testConfiguration();
+  
+  // Start keep-alive service (prevents DB/server sleep on free tier)
+  keepAliveService.start();
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  keepAliveService.stop();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully...');
+  keepAliveService.stop();
+  process.exit(0);
 });
 
 export default app;
