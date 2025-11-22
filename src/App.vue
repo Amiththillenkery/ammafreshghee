@@ -1,5 +1,8 @@
 <template>
-  <div class="app">
+  <!-- Splash Screen -->
+  <SplashScreen v-if="!appReady" @ready="handleAppReady" />
+  
+  <div v-else class="app" :class="{ 'app-loaded': appReady }">
     <!-- Header -->
     <header class="header">
       <div class="container">
@@ -159,6 +162,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import SplashScreen from './components/SplashScreen.vue';
 import ProductCard from './components/ProductCard.vue';
 import Cart from './components/Cart.vue';
 import Checkout from './components/Checkout.vue';
@@ -166,12 +170,19 @@ import About from './components/About.vue';
 import Contact from './components/Contact.vue';
 import OrderTracking from './components/OrderTracking.vue';
 import PaymentCallback from './components/PaymentCallback.vue';
-import { products, loadProducts } from './data/products';
+import { products } from './data/products';
 import { useCart } from './composables/useCart';
 
 const { cartCount, openCart } = useCart();
 const showTrackOrder = ref(false);
 const showPaymentCallback = ref(false);
+const appReady = ref(false);
+
+// Handle app ready event from splash screen
+const handleAppReady = () => {
+  appReady.value = true;
+  checkRoute();
+};
 
 // Check if we're on payment callback route
 const checkRoute = () => {
@@ -180,12 +191,6 @@ const checkRoute = () => {
     showPaymentCallback.value = true;
   }
 };
-
-// Load products from API on mount
-onMounted(() => {
-  loadProducts();
-  checkRoute();
-});
 
 const scrollToSection = (sectionId: string, event: Event) => {
   event.preventDefault();
@@ -249,6 +254,23 @@ const goToHome = () => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  opacity: 0;
+  animation: fadeInApp 0.5s ease-out forwards;
+}
+
+@keyframes fadeInApp {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.app-loaded {
+  opacity: 1;
 }
 
 /* Header Styles */
