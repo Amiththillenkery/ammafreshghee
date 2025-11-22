@@ -148,6 +148,10 @@
         
         <div class="footer-bottom">
           <p>&copy; 2025 Amma Fresh Ghee. All rights reserved.</p>
+          <p class="visitor-count" v-if="visitorCount > 0">
+            <span class="visitor-icon">👥</span> 
+            <span class="visitor-text">{{ visitorCount.toLocaleString() }} visitors</span>
+          </p>
         </div>
       </div>
     </footer>
@@ -161,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 import SplashScreen from './components/SplashScreen.vue';
 import ProductCard from './components/ProductCard.vue';
 import Cart from './components/Cart.vue';
@@ -177,11 +181,28 @@ const { cartCount, openCart } = useCart();
 const showTrackOrder = ref(false);
 const showPaymentCallback = ref(false);
 const appReady = ref(false);
+const visitorCount = ref(0);
 
 // Handle app ready event from splash screen
 const handleAppReady = () => {
   appReady.value = true;
   checkRoute();
+  fetchVisitorCount();
+};
+
+// Fetch visitor count from API
+const fetchVisitorCount = async () => {
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://ammafreshghee.onrender.com';
+    const response = await fetch(`${apiUrl}/api/visitors/stats`);
+    const data = await response.json();
+    
+    if (data.success) {
+      visitorCount.value = data.totalVisitors;
+    }
+  } catch (error) {
+    console.log('Failed to fetch visitor count:', error);
+  }
 };
 
 // Check if we're on payment callback route
@@ -642,6 +663,35 @@ const goToHome = () => {
   padding-top: 30px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.5);
+}
+
+.visitor-count {
+  margin-top: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.visitor-icon {
+  font-size: 16px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.visitor-text {
+  font-weight: 500;
+  color: var(--primary-color);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
 }
 
 /* Container */

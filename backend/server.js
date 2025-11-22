@@ -685,6 +685,58 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+// Track visitor (increment counter)
+app.post('/api/visitors/track', async (req, res) => {
+  try {
+    await db.query(`
+      UPDATE visitors 
+      SET total_count = total_count + 1,
+          last_visit = CURRENT_TIMESTAMP 
+      WHERE id = 1
+    `);
+    
+    const result = await db.get('SELECT total_count FROM visitors WHERE id = 1');
+    
+    res.json({ 
+      success: true,
+      totalVisitors: parseInt(result.total_count)
+    });
+  } catch (error) {
+    console.error('Error tracking visitor:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to track visitor' 
+    });
+  }
+});
+
+// Get visitor statistics (public endpoint for main website)
+app.get('/api/visitors/stats', async (req, res) => {
+  try {
+    const stats = await db.get(`
+      SELECT 
+        total_count,
+        last_visit,
+        created_at
+      FROM visitors 
+      WHERE id = 1
+    `);
+    
+    res.json({ 
+      success: true,
+      totalVisitors: parseInt(stats.total_count),
+      lastVisit: stats.last_visit,
+      trackingSince: stats.created_at
+    });
+  } catch (error) {
+    console.error('Error fetching visitor stats:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch visitor stats' 
+    });
+  }
+});
+
 // Test notification configuration (admin only)
 app.post('/api/admin/test-notification', verifyAdmin, async (req, res) => {
   try {

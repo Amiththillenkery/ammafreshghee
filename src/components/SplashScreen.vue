@@ -54,8 +54,10 @@ const checkBackendHealth = async () => {
     currentStep.value = 1;
     loadingText.value = 'Connecting to server...';
     
+    const apiUrl = import.meta.env.VITE_API_URL || 'https://ammafreshghee.onrender.com';
+    
     // Check backend health
-    const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://ammafreshghee.onrender.com'}/api/health`, {
+    const response = await fetch(`${apiUrl}/api/health`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -67,6 +69,14 @@ const checkBackendHealth = async () => {
     if (!response.ok) {
       throw new Error('Server responded with an error');
     }
+    
+    // Track visitor (don't wait for it, fire and forget)
+    fetch(`${apiUrl}/api/visitors/track`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }).catch(err => console.log('Visitor tracking failed:', err));
     
     currentStep.value = 2;
     loadingText.value = 'Loading products...';

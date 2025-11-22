@@ -132,6 +132,23 @@ export async function initializeDatabase() {
       console.log('✓ Keep-alive table initialized');
     }
 
+    // Visitors tracking table (for main website)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS visitors (
+        id SERIAL PRIMARY KEY,
+        total_count BIGINT NOT NULL DEFAULT 0,
+        last_visit TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Initialize visitors table with first record if empty
+    const visitorsCheck = await client.query('SELECT COUNT(*) as count FROM visitors');
+    if (parseInt(visitorsCheck.rows[0].count) === 0) {
+      await client.query('INSERT INTO visitors (total_count) VALUES (0)');
+      console.log('✓ Visitors tracking initialized');
+    }
+
     // Create indexes
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number)
